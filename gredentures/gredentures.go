@@ -217,21 +217,18 @@ func setLogger(verbose bool) error {
 }
 
 func (config *appConfig) validateOptions() error {
-	// get any values pulled from the gredentures config file
-	// and use them to fill any unsupplied values from the command line
 	slog.Debug("Validating options")
 	if err := config.getGredenturesConfig(); err != nil {
 		return fmt.Errorf("error getting gredentures config: %w", err)
 	}
 
-	// check that all required values are set
-	slog.Debug("Checking for token")
-	if config.Token == "" {
+	// confirm required values have been found
+	switch {
+	case config.Token == "":
+		slog.Debug("Checking for token")
 		return fmt.Errorf("token must be supplied for MFA")
-	}
-
-	slog.Debug("Checking for org and device")
-	if config.Org == "" || config.Device == "" {
+	case config.Org == "" || config.Device == "":
+		slog.Debug("Checking for org and device")
 		return fmt.Errorf("the Token must be set with a commandline arg. Org, and Device must be set in a config file or as commandline options")
 	}
 
