@@ -85,6 +85,11 @@ func (conf *AppConfig) WriteGredenturesConfig() error {
 		return fmt.Errorf("failed to create key 'Device' in section 'gredentures': %w", err)
 	}
 
+	slog.Debug("Creating key", "key", "Timeout", "value", conf.Timeout)
+	if _, err := sec.NewKey("Timeout", strconv.Itoa(int(conf.Timeout))); err != nil {
+		return fmt.Errorf("failed to create key 'Timeout' in section 'gredentures': %w", err)
+	}
+
 	slog.Debug("Writing gredentures config file", "path", conf.Config)
 	if err := inidata.SaveTo(conf.Config); err != nil {
 		return fmt.Errorf("failed to save file: %w", err)
