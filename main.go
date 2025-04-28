@@ -10,7 +10,8 @@ import (
 	appa "gredentures/pkg/awsconfig"
 )
 
-const EnvVarMessage = `***********************************************************************************
+const EnvVarMessage = `
+***********************************************************************************
 * To use your session creds by default please add the following to your profile:  *
 *                                                                                 *
 * export AWS_PROFILE=default-mfa                                                  *
