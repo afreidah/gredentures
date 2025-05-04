@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
+	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/providers/confmap"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/parsers/yaml"
+	y "gopkg.in/yaml.v3" // Alias this import to avoid conflicts
 
 	"github.com/docopt/docopt-go"
-	"gopkg.in/ini.v1"
 )
 
 const Usage = `Usage:
@@ -68,31 +71,27 @@ func (config *AppConfig) Parse(args []string) error {
 }
 
 func (conf *AppConfig) WriteGredenturesConfig() error {
-	inidata := ini.Empty()
+	k := koanf.New(".") // Initialize koanf with a delimiter
 
-	slog.Debug("Creating gredentures config file", "path", conf.Config)
-	sec, err := inidata.NewSection("gredentures")
+	// Load the current AppConfig values into koanf
+	configMap := map[string]interface{}{
+		"gredentures.Org":     conf.Org,
+		"gredentures.Device":  conf.Device,
+		"gredentures.Timeout": conf.Timeout,
+	}
+	if err := k.Load(confmap.Provider(configMap, "."), nil); err != nil {
+		return fmt.Errorf("failed to load AppConfig values into koanf: %w", err)
+	}
+
+	// Marshal the configuration into YAML
+	yamlData, err := y.Marshal(k.All())
 	if err != nil {
-		return fmt.Errorf("failed to create section 'gredentures': %w", err)
-	}
-	slog.Debug("Creating section", "section", "gredentures")
-	if _, err := sec.NewKey("Org", conf.Org); err != nil {
-		return fmt.Errorf("failed to create key 'Org' in section 'gredentures': %w", err)
+		return fmt.Errorf("failed to marshal configuration to YAML: %w", err)
 	}
 
-	slog.Debug("Creating key", "key", "Org", "value", conf.Org)
-	if _, err := sec.NewKey("Device", conf.Device); err != nil {
-		return fmt.Errorf("failed to create key 'Device' in section 'gredentures': %w", err)
-	}
-
-	slog.Debug("Creating key", "key", "Timeout", "value", conf.Timeout)
-	if _, err := sec.NewKey("Timeout", strconv.Itoa(int(conf.Timeout))); err != nil {
-		return fmt.Errorf("failed to create key 'Timeout' in section 'gredentures': %w", err)
-	}
-
-	slog.Debug("Writing gredentures config file", "path", conf.Config)
-	if err := inidata.SaveTo(conf.Config); err != nil {
-		return fmt.Errorf("failed to save file: %w", err)
+	// Write the YAML data to the specified file
+	if err := os.WriteFile(conf.Config, yamlData, 0644); err != nil {
+		return fmt.Errorf("failed to write configuration to file: %w", err)
 	}
 
 	return nil
@@ -116,39 +115,39 @@ func (conf *AppConfig) GetGredenturesConfig() error {
 	}
 }
 
+// EXAMPLE GREDENTURES YML FILE
+//
+// gredentures:
+//   Org: "111713626827"
+//   Device: "arn:aws:iam::111713626827:mfa/alex-iphone-14"
+//
 func (conf *AppConfig) LoadGredenturesConfig() error {
-	slog.Debug("Loading gredentures config file", "path", conf.Config)
-	cfg, err := ini.Load(conf.Config)
-	if err != nil {
-		return fmt.Errorf("failed to load config file: %w", err)
+	k := koanf.New(".") // Initialize koanf with a delimiter
+
+	// Load the existing AppConfig values into koanf
+	existingConfig := map[string]interface{}{
+		"gredentures.Org":     conf.Org,
+		"gredentures.Device":  conf.Device,
+		"gredentures.Timeout": conf.Timeout,
+	}
+	if err := k.Load(confmap.Provider(existingConfig, "."), nil); err != nil {
+		return fmt.Errorf("failed to load existing AppConfig values into koanf: %w", err)
 	}
 
-	slog.Debug("Getting gredentures section")
-	section, err := cfg.GetSection("gredentures")
-	if err != nil {
-		return fmt.Errorf("failed to get gredentures section: %w", err)
+	// Load the YAML file into koanf
+	if err := k.Load(file.Provider(conf.Config), yaml.Parser()); err != nil {
+		return fmt.Errorf("failed to load YAML file into koanf: %w", err)
 	}
 
-	// Populate configuration fields if not already set
-	slog.Debug("Populating configuration fields")
-	if conf.Org == "" && section.HasKey("Org") {
-		slog.Debug("Setting Org from config")
-		conf.Org = section.Key("Org").String()
+	// Update AppConfig fields only if they are not already set
+	if conf.Org == "" {
+		conf.Org = k.String("gredentures.Org")
 	}
-	if conf.Device == "" && section.HasKey("Device") {
-		slog.Debug("Setting Device from config")
-		conf.Device = section.Key("Device").String()
+	if conf.Device == "" {
+		conf.Device = k.String("gredentures.Device")
 	}
-	if section.HasKey("Timeout") {
-		slog.Debug("Setting Timeout from config")
-		timeoutStr := section.Key("Timeout").String()
-
-		timeoutInt, err := strconv.Atoi(timeoutStr)
-		if err != nil {
-			return fmt.Errorf("failed to convert Timeout to int: %v", err)
-		}
-
-		conf.Timeout = int32(timeoutInt)
+	if conf.Timeout == 0 {
+		conf.Timeout = int32(k.Int("gredentures.Timeout"))
 	}
 
 	return nil
