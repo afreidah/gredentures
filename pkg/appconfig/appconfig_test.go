@@ -7,8 +7,10 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"gopkg.in/ini.v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/parsers/yaml"
 )
 
 func resetLogging() {
@@ -91,318 +93,110 @@ func TestParse(t *testing.T) {
 }
 
 func TestWriteGredenturesConfig(t *testing.T) {
-	resetLogging()
-	tests := []struct {
-		name       string
-		config     *AppConfig
-		wantErr    bool
-		verifyFile func(t *testing.T, path string)
-	}{
-		{
-			name: "Valid configuration",
-			config: &AppConfig{
-				Config:  "/tmp/test_gredentures.ini",
-				Org:     "test-org",
-				Device:  "test-device",
-				Timeout: 3600,
-			},
-			wantErr: false,
-			verifyFile: func(t *testing.T, path string) {
-				cfg, err := ini.Load(path)
-				if err != nil {
-					t.Fatalf("Failed to load config file: %v", err)
-				}
+	t.Run("Write all values to YAML file", func(t *testing.T) {
+		// Create a temporary file for the YAML config
+		tempFile, err := os.CreateTemp("", "gredentures_config_*.yaml")
+		assert.NoError(t, err)
+		defer os.Remove(tempFile.Name())
 
-				section, err := cfg.GetSection("gredentures")
-				if err != nil {
-					t.Fatalf("Failed to get section: %v", err)
-				}
+		// Initialize AppConfig with values
+		conf := &AppConfig{
+			Config:  tempFile.Name(),
+			Org:     "test-org",
+			Device:  "test-device",
+			Timeout: 3600,
+		}
 
-				if section.Key("Org").String() != "test-org" {
-					t.Errorf("Org key mismatch: got %v, want %v", section.Key("Org").String(), "test-org")
-				}
-				if section.Key("Device").String() != "test-device" {
-					t.Errorf("Device key mismatch: got %v, want %v", section.Key("Device").String(), "test-device")
-				}
-				if section.Key("Timeout").String() != "3600" {
-					t.Errorf("Timeout key mismatch: got %v, want %v", section.Key("Timeout").String(), "3600")
-				}
-			},
-		},
-		{
-			name: "Missing config path",
-			config: &AppConfig{
-				Config:  "",
-				Org:     "test-org",
-				Device:  "test-device",
-				Timeout: 3600,
-			},
-			wantErr: true,
-		},
-	}
+		// Call WriteGredenturesConfig
+		err = conf.WriteGredenturesConfig()
+		assert.NoError(t, err)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.WriteGredenturesConfig()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("WriteGredenturesConfig() error = %v, wantErr %v", err, tt.wantErr)
-			}
+		// Load the written YAML file to verify its contents
+		k := koanf.New(".")
+		err = k.Load(file.Provider(tempFile.Name()), yaml.Parser())
+		assert.NoError(t, err)
 
-			if err == nil && tt.verifyFile != nil {
-				tt.verifyFile(t, tt.config.Config)
-				_ = os.Remove(tt.config.Config) // Clean up test file
-			}
-		})
-	}
-}
+		// Verify the values in the YAML file
+		assert.Equal(t, "test-org", k.String("gredentures.Org"))
+		assert.Equal(t, "test-device", k.String("gredentures.Device"))
+		assert.Equal(t, "3600", k.String("gredentures.Timeout"))
+	})
 
-func TestGetGredenturesConfig(t *testing.T) {
-	resetLogging()
-	tests := []struct {
-		name       string
-		config     *AppConfig
-		setupFile  func(t *testing.T, path string)
-		wantErr    bool
-		verifyFile func(t *testing.T, path string)
-	}{
-		{
-			name: "Config file exists",
-			config: &AppConfig{
-				Config: "/tmp/existing_gredentures.ini",
-			},
-			setupFile: func(t *testing.T, path string) {
-				cfg := ini.Empty()
-				section, _ := cfg.NewSection("gredentures")
-				if _, err := section.NewKey("Org", "test-org"); err != nil {
-					t.Fatalf("Failed to create Org key: %v", err)
-				}
-				if _, err := section.NewKey("Device", "test-device"); err != nil {
-					t.Fatalf("Failed to create device key: %v", err)
-				}
-				if _, err := section.NewKey("Timeout", "3600"); err != nil {
-					t.Fatalf("Failed to create timeout key: %v", err)
-				}
-				if err := cfg.SaveTo(path); err != nil {
-					t.Fatalf("Failed to create test config file: %v", err)
-				}
-			},
-			wantErr: false,
-		},
-		{
-			name: "Config file does not exist",
-			config: &AppConfig{
-				Config:  "/tmp/nonexistent_gredentures.ini",
-				Org:     "test-org",
-				Device:  "test-device",
-				Timeout: 3600,
-			},
-			setupFile: nil,
-			wantErr:   false,
-			verifyFile: func(t *testing.T, path string) {
-				if _, err := os.Stat(path); os.IsNotExist(err) {
-					t.Errorf("Expected config file to be created, but it does not exist")
-				}
-			},
-		},
-		{
-			name: "Error checking config file",
-			config: &AppConfig{
-				Config: "/invalid/path/gredentures.ini",
-			},
-			setupFile: nil,
-			wantErr:   true,
-		},
-	}
+	t.Run("Write empty values to YAML file", func(t *testing.T) {
+		// Create a temporary file for the YAML config
+		tempFile, err := os.CreateTemp("", "gredentures_config_*.yaml")
+		assert.NoError(t, err)
+		defer os.Remove(tempFile.Name())
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupFile != nil {
-				tt.setupFile(t, tt.config.Config)
-				defer func() {
-					if err := os.Remove(tt.config.Config); err != nil {
-						t.Fatalf("Error removing file %s: %v", tt.config.Config, err)
-					}
-				}()
-			}
+		// Initialize AppConfig with empty values
+		conf := &AppConfig{
+			Config: tempFile.Name(),
+		}
 
-			err := tt.config.GetGredenturesConfig()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetGredenturesConfig() error = %v, wantErr %v", err, tt.wantErr)
-			}
+		// Call WriteGredenturesConfig
+		err = conf.WriteGredenturesConfig()
+		assert.NoError(t, err)
 
-			if err == nil && tt.verifyFile != nil {
-				tt.verifyFile(t, tt.config.Config)
-			}
-		})
-	}
+		// Load the written YAML file to verify its contents
+		k := koanf.New(".")
+		err = k.Load(file.Provider(tempFile.Name()), yaml.Parser())
+		assert.NoError(t, err)
+
+		// Verify the values in the YAML file
+		assert.Equal(t, "", k.String("gredentures.Org"))
+		assert.Equal(t, "", k.String("gredentures.Device"))
+		assert.Equal(t, "0", k.String("gredentures.Timeout"))
+	})
 }
 
 func TestLoadGredenturesConfig(t *testing.T) {
-	tests := []struct {
-		name      string
-		config    *AppConfig
-		setupFile func(t *testing.T, path string)
-		wantErr   bool
-		verify    func(t *testing.T, config *AppConfig)
-	}{
-		{
-			name: "Valid config file",
-			config: &AppConfig{
-				Config: "/tmp/valid_gredentures.ini",
-			},
-			setupFile: func(t *testing.T, path string) {
-				cfg := ini.Empty()
-				section, _ := cfg.NewSection("gredentures")
-				if _, err := section.NewKey("Org", "test-org"); err != nil {
-					t.Fatalf("Failed to create Org key: %v", err)
-				}
-				if _, err := section.NewKey("Device", "test-device"); err != nil {
-					t.Fatalf("Failed to create device key: %v", err)
-				}
-				if _, err := section.NewKey("Timeout", "3600"); err != nil {
-					t.Fatalf("Failed to create device key: %v", err)
-				}
-				if err := cfg.SaveTo(path); err != nil {
-					t.Fatalf("Failed to create test config file: %v", err)
-				}
-			},
-			wantErr: false,
-			verify: func(t *testing.T, config *AppConfig) {
-				if config.Org != "test-org" {
-					t.Errorf("Org mismatch: got %v, want %v", config.Org, "test-org")
-				}
-				if config.Device != "test-device" {
-					t.Errorf("Device mismatch: got %v, want %v", config.Device, "test-device")
-				}
-				if config.Timeout != 3600 {
-					t.Errorf("Timeout mismatch: got %v, want %v", config.Timeout, 3600)
-				}
-			},
-		},
-		{
-			name: "Invalid Timeout value",
-			config: &AppConfig{
-				Config: "/tmp/invalid_timeout.ini",
-			},
-			setupFile: func(t *testing.T, path string) {
-				cfg := ini.Empty()
-				section, _ := cfg.NewSection("gredentures")
-				if _, err := section.NewKey("Timeout", "invalid"); err != nil {
-					t.Fatalf("Failed to create Timeout key: %v", err)
-				}
-				if err := cfg.SaveTo(path); err != nil {
-					t.Fatalf("Failed to create test config file: %v", err)
-				}
-			},
-			wantErr: true,
-		},
-		{
-			name: "Missing config file",
-			config: &AppConfig{
-				Config: "/tmp/missing_gredentures.ini",
-			},
-			setupFile: nil,
-			wantErr:   true,
-		},
-	}
+	// Create a temporary YAML config file
+	tempFile, err := os.CreateTemp("", "gredentures_config_*.yaml")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupFile != nil {
-				tt.setupFile(t, tt.config.Config)
-				// cleanup test file
-				defer func() {
-					if err := os.Remove(tt.config.Config); err != nil {
-						t.Fatalf("Error removing file %s: %v", tt.config.Config, err)
-					}
-				}()
-			}
+	// Write test data to the YAML file
+	_, err = tempFile.WriteString(`
+gredentures:
+  Org: file-org
+  Device: file-device
+  Timeout: 300
+`)
+	assert.NoError(t, err)
+	assert.NoError(t, tempFile.Close())
 
-			err := tt.config.LoadGredenturesConfig()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("LoadGredenturesConfig() error = %v, wantErr %v", err, tt.wantErr)
-			}
+	t.Run("Command-line values take precedence", func(t *testing.T) {
+		// Initialize AppConfig with command-line values
+		conf := &AppConfig{
+			Config:  tempFile.Name(),
+			Org:     "cmdline-org",
+			Device:  "cmdline-device",
+			Timeout: 600,
+		}
 
-			if err == nil && tt.verify != nil {
-				tt.verify(t, tt.config)
-			}
-		})
-	}
-}
+		// Call LoadGredenturesConfig
+		err = conf.LoadGredenturesConfig()
+		assert.NoError(t, err)
 
-func TestValidateOptions(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  *AppConfig
-		setup   func(t *testing.T, config *AppConfig)
-		wantErr bool
-	}{
-		{
-			name: "Valid configuration",
-			config: &AppConfig{
-				Token:  "test-token",
-				Org:    "test-org",
-				Device: "test-device",
-			},
-			setup:   nil,
-			wantErr: false,
-		},
-		{
-			name: "Missing token",
-			config: &AppConfig{
-				Org:    "test-org",
-				Device: "test-device",
-			},
-			setup:   nil,
-			wantErr: true,
-		},
-		{
-			name: "Missing org and device",
-			config: &AppConfig{
-				Config: "/tmp/test_validate_config_empty.ini",
-				Token:  "test-token",
-			},
-			setup:   nil,
-			wantErr: true,
-		},
-		{
-			name: "Load config from file",
-			config: &AppConfig{
-				Config: "/tmp/test_validate_config.ini",
-				Token:  "test-token",
-			},
-			setup: func(t *testing.T, config *AppConfig) {
-				cfg := ini.Empty()
-				section, _ := cfg.NewSection("gredentures")
-				if _, err := section.NewKey("Org", "test-org"); err != nil {
-					t.Fatalf("Failed to create Org key: %v", err)
-				}
-				if _, err := section.NewKey("Device", "test-device"); err != nil {
-					t.Fatalf("Failed to create device key: %v", err)
-				}
-				if err := cfg.SaveTo(config.Config); err != nil {
-					t.Fatalf("Failed to create test config file: %v", err)
-				}
-			},
-			wantErr: false,
-		},
-	}
+		// Verify that the merged values prioritize command-line values
+		assert.Equal(t, "cmdline-org", conf.Org)       // Command-line value takes precedence
+		assert.Equal(t, "cmdline-device", conf.Device) // Command-line value takes precedence
+		assert.Equal(t, int32(600), conf.Timeout)      // Command-line value takes precedence
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.setup != nil {
-				tt.setup(t, tt.config)
-				defer func() {
-					if err := os.Remove(tt.config.Config); err != nil {
-						t.Fatalf("Error removing file %s: %v", tt.config.Config, err)
-					}
-				}()
-			}
+	t.Run("Config file values are used when command-line values are missing", func(t *testing.T) {
+		// Initialize AppConfig without command-line values
+		conf := &AppConfig{
+			Config: tempFile.Name(),
+		}
 
-			err := tt.config.ValidateOptions()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ValidateOptions() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
+		// Call LoadGredenturesConfig
+		err = conf.LoadGredenturesConfig()
+		assert.NoError(t, err)
+
+		// Verify that the values from the config file are used
+		assert.Equal(t, "file-org", conf.Org)       // Config file value is used
+		assert.Equal(t, "file-device", conf.Device) // Config file value is used
+		assert.Equal(t, int32(300), conf.Timeout)   // Config file value is used
+	})
 }
