@@ -115,12 +115,6 @@ func (conf *AppConfig) GetGredenturesConfig() error {
 	}
 }
 
-// EXAMPLE GREDENTURES YML FILE
-//
-// gredentures:
-//   Org: "111713626827"
-//   Device: "arn:aws:iam::111713626827:mfa/alex-iphone-14"
-//
 func (conf *AppConfig) LoadGredenturesConfig() error {
 	k := koanf.New(".") // Initialize koanf with a delimiter
 
