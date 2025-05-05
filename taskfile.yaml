@@ -1,0 +1,38 @@
+version: '3'
+
+tasks:
+  watch-build:
+    desc: Watch .go files and rebuild on changes
+    cmds:
+      - watchexec -e go -w cmd/gredentures -r -- task build
+    silent: true
+
+  watch-test:
+    desc: Watch .go and _test.go files and re-run tests on changes
+    cmds:
+      - watchexec -e go -w . -r -- task test
+    silent: true
+
+  build:
+    desc: Build the Gredentures CLI binary
+    cmds:
+      - go build -o build/gredentures ./cmd/gredentures
+    silent: true
+
+  test:
+    desc: Run all tests with gotestsum
+    cmds:
+      - gotestsum --format testname -- ./...
+
+  lint:
+    desc: Run `go fmt` and `go vet` on the project
+    cmds:
+      - go fmt ./...
+      - go vet ./...
+
+  all:
+    desc: Run lint, build, and test tasks
+    deps:
+      - lint
+      - build
+      - test

@@ -9,8 +9,8 @@ import (
 
 	"gredentures/pkg/appconfig"
 
-       "github.com/stretchr/testify/assert"
-       "gopkg.in/ini.v1"
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/ini.v1"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -22,7 +22,6 @@ func resetLogging() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 }
-
 
 // Define a type for the LoadDefaultConfig function
 type LoadConfigFunc func(ctx context.Context, optFns ...func(*config.LoadOptions) error) (aws.Config, error)
