@@ -1,6 +1,6 @@
 ---
 
-# Gredentures
+ Gredentures
 
 **Gredentures** is a CLI tool designed to simplify the management of AWS credentials and configurations, particularly for workflows involving multi-factor authentication (MFA). It provides functionality for parsing configuration files, managing session tokens, and updating AWS credentials files.
 
