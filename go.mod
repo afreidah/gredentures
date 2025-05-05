@@ -30,7 +30,8 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/sys v0.0.0-20210603081109-ebe580a85c40 // indirect
+	go.uber.org/mock v0.5.2 // indirect
+	golang.org/x/sys v0.19.0 // indirect
 )
 
 replace github.com/knadh/koanf/v2 => github.com/knadh/koanf v1.5.0
