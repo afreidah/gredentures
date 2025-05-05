@@ -2,15 +2,15 @@ package appconfig
 
 import (
 	"bytes"
+	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"log/slog"
 	"os"
 	"strings"
 	"testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/knadh/koanf"
-	"github.com/knadh/koanf/providers/file"
-	"github.com/knadh/koanf/parsers/yaml"
 )
 
 func resetLogging() {
@@ -62,20 +62,30 @@ func TestSetLogger(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	resetLogging()
+
 	tests := []struct {
-		name    string
-		args    []string
-		wantErr bool
+		name            string
+		args            []string
+		wantErr         bool
+		expectedProfile string
 	}{
 		{
-			name:    "Valid arguments",
-			args:    []string{"--token", "test-token", "--config", "/tmp/config", "--org", "test-org", "--device", "test-device", "--timeout", "3600", "--verbose"},
-			wantErr: false,
+			name:            "Valid arguments with default profile",
+			args:            []string{"--token", "test-token", "--config", "/tmp/config", "--org", "test-org", "--device", "test-device", "--timeout", "3600", "--verbose"},
+			wantErr:         false,
+			expectedProfile: "default-mfa",
 		},
 		{
-			name:    "Invalid timeout value",
-			args:    []string{"--token", "test-token", "--timeout", "invalid"},
-			wantErr: true,
+			name:            "Valid arguments with custom profile",
+			args:            []string{"--token", "test-token", "--profile", "custom-profile", "--config", "/tmp/config", "--org", "test-org", "--device", "test-device", "--timeout", "3600", "--verbose"},
+			wantErr:         false,
+			expectedProfile: "custom-profile",
+		},
+		{
+			name:            "Valid arguments with defaults omitted",
+			args:            []string{"--token", "test-token", "--org", "test-org", "--device", "test-device"},
+			wantErr:         false,
+			expectedProfile: "default-mfa",
 		},
 	}
 
@@ -87,6 +97,62 @@ func TestParse(t *testing.T) {
 				if !tt.wantErr {
 					t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 				}
+			} else {
+				if tt.wantErr {
+					t.Errorf("Parse() error = nil, wantErr %v", tt.wantErr)
+				}
+			}
+			if config.Profile != tt.expectedProfile {
+				t.Errorf("Parse() Profile = %v, expected %v", config.Profile, tt.expectedProfile)
+			}
+		})
+	}
+}
+
+func TestParseDefaults(t *testing.T) {
+	resetLogging()
+
+	tests := []struct {
+		name            string
+		args            []string
+		wantErr         bool
+		expectedProfile string
+		expectedTimeout int32
+	}{
+		{
+			name:            "Valid arguments with defaults",
+			args:            []string{"--token", "test-token", "--org", "test-org", "--device", "test-device"},
+			wantErr:         false,
+			expectedProfile: "default-mfa",
+			expectedTimeout: 86400,
+		},
+		{
+			name:            "Valid arguments with overrides",
+			args:            []string{"--token", "test-token", "--org", "test-org", "--device", "test-device", "--timeout", "6000", "-p", "custom-profile"},
+			wantErr:         false,
+			expectedProfile: "custom-profile",
+			expectedTimeout: int32(6000),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &AppConfig{}
+			err := config.Parse(tt.args)
+			if err != nil {
+				if !tt.wantErr {
+					t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			} else {
+				if tt.wantErr {
+					t.Errorf("Parse() error = nil, wantErr %v", tt.wantErr)
+				}
+			}
+			if config.Profile != tt.expectedProfile {
+				t.Errorf("Parse() Profile = %v, expected %v", config.Profile, tt.expectedProfile)
+			}
+			if config.Timeout != tt.expectedTimeout {
+				t.Errorf("Parse() Timeout = %v, expected %v", config.Timeout, tt.expectedTimeout)
 			}
 		})
 	}
