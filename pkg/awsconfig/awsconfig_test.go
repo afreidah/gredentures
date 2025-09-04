@@ -101,7 +101,7 @@ func TestCreateUpdatedConfig(t *testing.T) {
 	// Mock HOME environment variable
 	tempDir := t.TempDir()
 	mockAwsDir := tempDir + "/.aws"
-	err := os.MkdirAll(mockAwsDir, 0755) // Ensure the .aws directory exists
+	err := os.MkdirAll(mockAwsDir, 0o755) // Ensure the .aws directory exists
 	assert.NoError(t, err)
 	if err := os.Setenv("HOME", tempDir); err != nil {
 		t.Fatalf("Failed to set HOME environment variable: %v", err)

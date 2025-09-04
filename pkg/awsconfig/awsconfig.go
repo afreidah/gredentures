@@ -6,9 +6,10 @@ package awsconfig
 import (
 	"context"
 	"fmt"
-	"gredentures/pkg/appconfig"
 	"log/slog"
 	"os"
+
+	"gredentures/pkg/appconfig"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
